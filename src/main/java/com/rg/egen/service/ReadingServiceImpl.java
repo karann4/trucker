@@ -7,12 +7,20 @@ import com.rg.egen.exception.ReadingNotFoundException;
 import com.rg.egen.repository.AlertRepository;
 import com.rg.egen.repository.ReadingsRepository;
 import com.rg.egen.repository.VehicleRepository;
-import org.jeasy.rules.api.Facts;
-import org.jeasy.rules.api.Rules;
-import org.jeasy.rules.api.RulesEngine;
-import org.jeasy.rules.core.DefaultRulesEngine;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.simpleemail.AmazonSimpleEmailService;
+import com.amazonaws.services.simpleemail.AmazonSimpleEmailServiceClientBuilder;
+import com.amazonaws.services.simpleemail.model.Body;
+import com.amazonaws.services.simpleemail.model.Content;
+import com.amazonaws.services.simpleemail.model.Destination;
+import com.amazonaws.services.simpleemail.model.Message;
+import com.amazonaws.services.simpleemail.model.SendEmailRequest;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -22,6 +30,8 @@ import java.util.Optional;
 
 @Service
 public class ReadingServiceImpl implements ReadingService {
+
+
 
     private final ReadingsRepository repository;
 
@@ -50,6 +60,49 @@ public class ReadingServiceImpl implements ReadingService {
         return existing.get();
     }
 
+    public void sendEmail(String HTMLBODY){
+         String FROM = "karumbaiah4@gmail.com";
+
+         String TO = "karumbaiah4@gmail.com";
+
+
+         String SUBJECT = "Vehicle Alert";
+
+
+
+        String TEXTBODY = "This email was sent through Amazon SES "
+                + "using the AWS SDK for Java.";
+
+        try {
+            AmazonSimpleEmailService client =
+                    AmazonSimpleEmailServiceClientBuilder.standard()
+ 
+                            .withRegion(Regions.US_EAST_1).build();
+            SendEmailRequest request = new SendEmailRequest()
+                    .withDestination(
+                            new Destination().withToAddresses(TO))
+                    .withMessage(new Message()
+                            .withBody(new Body()
+                                    .withHtml(new Content()
+                                            .withCharset("UTF-8").withData(HTMLBODY))
+                                    .withText(new Content()
+                                            .withCharset("UTF-8").withData(TEXTBODY)))
+                            .withSubject(new Content()
+                                    .withCharset("UTF-8").withData(SUBJECT)))
+                    .withSource(FROM);
+
+            client.sendEmail(request);
+            System.out.println("Email sent!");
+        } catch (Exception ex) {
+            System.out.println("The email was not sent. Error message: "
+                    + ex.getMessage());
+        }
+    }
+
+
+
+
+
     @Override
     public Reading create(Reading reading) {
         Optional<Vehicle> existing = vehicleRepository.findByVin(reading.getVin());
@@ -62,6 +115,7 @@ public class ReadingServiceImpl implements ReadingService {
             System.out.println(e.getMessage());
         }
         if(existing.isPresent()) {
+
             if(reading.getFuelVolume() < 0.1 * existing.get().getMaxFuelVolume()) {
                 Alert alert = new Alert();
                 alert.setVin(reading.getVin());
@@ -71,6 +125,7 @@ public class ReadingServiceImpl implements ReadingService {
                 alert.setLatitude(reading.getLatitude());
                 alert.setLongitude(reading.getLongitude());
                 alertRepository.save(alert);
+
             }
             if(reading.getEngineRpm() > existing.get().getRedlineRpm()) {
                 Alert alert = new Alert();
@@ -82,6 +137,10 @@ public class ReadingServiceImpl implements ReadingService {
                 alert.setLongitude(reading.getLongitude());
                 alertRepository.save(alert);
                 System.out.println("Alert for Vehicle with VIN:- "+reading.getVin()+" with priority HIGH");
+                String HTMLBODY = "<h1>Trucker</h1>"
+                        + "<p>This is a HIGH alert regarding your vehicle'>"
+                        + "Vehicle with VIN "+reading.getVin()+"is running with high engine RPM'>";
+                sendEmail(HTMLBODY);
             }
             if(reading.getTires().getFrontLeft() < 32 || reading.getTires().getFrontLeft() > 36 || reading.getTires().getFrontRight() > 36 || reading.getTires().getFrontRight() < 32 || reading.getTires().getRearLeft() > 36 || reading.getTires().getRearLeft() < 32 || reading.getTires().getRearRight() > 36 || reading.getTires().getRearRight() < 32) {
                 Alert alert = new Alert();
